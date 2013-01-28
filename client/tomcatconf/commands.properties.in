@@ -1,0 +1,516 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+### bitmap of permissions at the end of each classname, 1 = ADMIN, 2 = RESOURCE_DOMAIN_ADMIN, 4 = DOMAIN_ADMIN, 8 = USER
+### Please standardize naming conventions to camel-case (even for acronyms).
+
+### Account commands
+createAccount=3
+deleteAccount=3
+updateAccount=3
+disableAccount=7
+enableAccount=7
+lockAccount=7
+listAccounts=15
+markDefaultZoneForAccount=1
+
+#### User commands
+createUser=3
+deleteUser=3
+updateUser=15
+listUsers=7
+lockUser=7
+disableUser=7
+enableUser=7
+getUser=1
+
+#### Domain commands
+createDomain=1
+updateDomain=1
+deleteDomain=1
+listDomains=7
+listDomainChildren=7
+
+####Cloud Identifier commands
+getCloudIdentifier=15
+
+#### Limit commands
+updateResourceLimit=7
+updateResourceCount=7
+listResourceLimits=15
+
+#### VM commands
+deployVirtualMachine=15
+destroyVirtualMachine=15
+rebootVirtualMachine=15
+startVirtualMachine=15
+stopVirtualMachine=15
+resetPasswordForVirtualMachine=15
+updateVirtualMachine=15
+listVirtualMachines=15
+getVMPassword=15
+restoreVirtualMachine=15
+changeServiceForVirtualMachine=15
+assignVirtualMachine=1
+migrateVirtualMachine=1
+recoverVirtualMachine=7
+
+#### snapshot commands
+createSnapshot=15
+listSnapshots=15
+deleteSnapshot=15
+createSnapshotPolicy=15
+deleteSnapshotPolicies=15
+listSnapshotPolicies=15
+
+
+#### template commands
+createTemplate=15
+registerTemplate=15
+updateTemplate=15
+copyTemplate=15
+deleteTemplate=15
+listTemplates=15
+updateTemplatePermissions=15
+listTemplatePermissions=15
+extractTemplate=15
+prepareTemplate=1
+
+#### iso commands
+attachIso=15
+detachIso=15
+listIsos=15
+registerIso=15
+updateIso=15
+deleteIso=15
+copyIso=15
+updateIsoPermissions=15
+listIsoPermissions=15
+extractIso=15
+
+#### guest OS commands
+listOsTypes=15
+listOsCategories=15
+
+#### service offering commands
+createServiceOffering=1
+deleteServiceOffering=1
+updateServiceOffering=1
+listServiceOfferings=15
+
+#### disk offering commands
+createDiskOffering=1
+updateDiskOffering=1
+deleteDiskOffering=1
+listDiskOfferings=15
+
+#### vlan commands
+createVlanIpRange=1
+deleteVlanIpRange=1
+listVlanIpRanges=1
+
+#### address commands
+associateIpAddress=15
+disassociateIpAddress=15
+listPublicIpAddresses=15
+
+#### firewall commands
+listPortForwardingRules=15
+createPortForwardingRule=15
+deletePortForwardingRule=15
+updatePortForwardingRule=15
+
+#### NAT commands
+enableStaticNat=15
+createIpForwardingRule=15
+deleteIpForwardingRule=15
+listIpForwardingRules=15
+disableStaticNat=15
+
+#### load balancer commands
+createLoadBalancerRule=15
+deleteLoadBalancerRule=15
+removeFromLoadBalancerRule=15
+assignToLoadBalancerRule=15
+createLBStickinessPolicy=15
+deleteLBStickinessPolicy=15
+listLoadBalancerRules=15
+listLBStickinessPolicies=15
+listLoadBalancerRuleInstances=15
+updateLoadBalancerRule=15
+
+#### autoscale commands
+createCounter=1
+createCondition=15
+createAutoScalePolicy=15
+createAutoScaleVmProfile=15
+createAutoScaleVmGroup=15
+deleteCounter=1
+deleteCondition=15
+deleteAutoScalePolicy=15
+deleteAutoScaleVmProfile=15
+deleteAutoScaleVmGroup=15
+listCounters=15
+listConditions=15
+listAutoScalePolicies=15
+listAutoScaleVmProfiles=15
+listAutoScaleVmGroups=15
+enableAutoScaleVmGroup=15
+disableAutoScaleVmGroup=15
+updateAutoScalePolicy=15
+updateAutoScaleVmProfile=15
+updateAutoScaleVmGroup=15
+
+#### router commands
+startRouter=7
+rebootRouter=7
+stopRouter=7
+destroyRouter=7
+changeServiceForRouter=7
+listRouters=7
+listVirtualRouterElements=7
+configureVirtualRouterElement=7
+createVirtualRouterElement=7
+
+#### system vm commands
+startSystemVm=1
+rebootSystemVm=1
+stopSystemVm=1
+destroySystemVm=1
+listSystemVms=3
+migrateSystemVm=1
+changeServiceForSystemVm=1
+
+#### configuration commands
+updateConfiguration=1
+listConfigurations=1
+ldapConfig=1
+ldapRemove=1
+listCapabilities=15
+
+#### pod commands
+createPod=1
+updatePod=1
+deletePod=1
+listPods=3
+
+#### zone commands
+createZone=1
+updateZone=1
+deleteZone=1
+listZones=15
+
+#### events commands
+listEvents=15
+listEventTypes=15
+
+#### alerts commands
+listAlerts=3
+
+#### system capacity commands
+listCapacity=3
+
+#### swift commands
+addSwift=1
+listSwifts=1
+
+#### s3 commands
+addS3=1
+listS3s=1
+
+#### host commands
+addHost=3
+addCluster=1
+deleteCluster=1
+updateCluster=1
+reconnectHost=1
+updateHost=1
+deleteHost=3
+prepareHostForMaintenance=1
+cancelHostMaintenance=1
+listHosts=3
+addSecondaryStorage=1
+updateHostPassword=1
+
+#### volume commands
+attachVolume=15
+uploadVolume=15
+detachVolume=15
+createVolume=15
+deleteVolume=15
+listVolumes=15
+extractVolume=15
+migrateVolume=15
+resizeVolume=15
+
+#### registration command:  FIXME -- this really should be something in management server that
+####                                 generates a new key for the user and they just have to
+####                                 use that key...the key is stored in the db associated w/
+####                                 the userId...every request to the developer API should be
+####                                 checked against the key
+registerUserKeys=15
+
+### async-query command
+queryAsyncJobResult=15
+listAsyncJobs=15
+
+#### storage pools commands
+listStoragePools=3
+createStoragePool=1
+updateStoragePool=1
+deleteStoragePool=1
+listClusters=3
+enableStorageMaintenance=1
+cancelStorageMaintenance=1
+
+#### security group commands
+createSecurityGroup=15
+deleteSecurityGroup=15
+authorizeSecurityGroupIngress=15
+revokeSecurityGroupIngress=15
+authorizeSecurityGroupEgress=15
+revokeSecurityGroupEgress=15
+listSecurityGroups=15
+
+#### vm group commands
+createInstanceGroup=15
+deleteInstanceGroup=15
+updateInstanceGroup=15
+listInstanceGroups=15
+
+### Certificate commands
+uploadCustomCertificate=1
+
+### other commands
+listHypervisors=15
+
+### VPN
+createRemoteAccessVpn=15
+deleteRemoteAccessVpn=15
+listRemoteAccessVpns=15
+
+addVpnUser=15
+removeVpnUser=15
+listVpnUsers=15
+
+#### network offering commands
+createNetworkOffering=1
+updateNetworkOffering=1
+deleteNetworkOffering=1
+listNetworkOfferings=15
+
+#### network commands
+createNetwork=15
+deleteNetwork=15
+listNetworks=15
+restartNetwork=15
+updateNetwork=15
+
+#### SSH key pair commands
+registerSSHKeyPair=15
+createSSHKeyPair=15
+deleteSSHKeyPair=15
+listSSHKeyPairs=15
+
+#### Projects commands
+createProject=15
+deleteProject=15
+updateProject=15
+activateProject=15
+suspendProject=15
+listProjects=15
+addAccountToProject=15
+deleteAccountFromProject=15
+listProjectAccounts=15
+listProjectInvitations=15
+updateProjectInvitation=15
+deleteProjectInvitation=15
+
+#### 
+createFirewallRule=15
+deleteFirewallRule=15
+listFirewallRules=15
+
+#### hypervisor capabilities commands
+updateHypervisorCapabilities=1
+listHypervisorCapabilities=1
+
+#### Physical Network commands
+createPhysicalNetwork=1
+deletePhysicalNetwork=1
+listPhysicalNetworks=1
+updatePhysicalNetwork=1
+
+#### Physical Network Service Provider commands
+listSupportedNetworkServices=1
+addNetworkServiceProvider=1
+deleteNetworkServiceProvider=1
+listNetworkServiceProviders=1
+updateNetworkServiceProvider=1
+
+#### Physical Network Traffic Type commands
+addTrafficType=1
+deleteTrafficType=1
+listTrafficTypes=1
+updateTrafficType=1
+listTrafficTypeImplementors=1
+
+#### Storage Network commands
+createStorageNetworkIpRange=1
+deleteStorageNetworkIpRange=1
+listStorageNetworkIpRange=1
+updateStorageNetworkIpRange=1
+
+### Network Devices commands
+addNetworkDevice=1
+listNetworkDevice=1
+deleteNetworkDevice=1
+
+### VPC commands
+createVPC=15
+listVPCs=15
+deleteVPC=15
+updateVPC=15
+restartVPC=15
+
+#### VPC offering commands
+createVPCOffering=1
+updateVPCOffering=1
+deleteVPCOffering=1
+listVPCOfferings=15
+
+#### Private gateway commands
+createPrivateGateway=1
+listPrivateGateways=15
+deletePrivateGateway=1
+
+#### Network ACL commands
+createNetworkACL=15
+deleteNetworkACL=15
+listNetworkACLs=15
+
+#### Static route commands
+createStaticRoute=15
+deleteStaticRoute=15
+listStaticRoutes=15
+
+#### Tags commands
+createTags=15
+deleteTags=15
+listTags=15
+
+### Site-to-site VPN commands
+createVpnCustomerGateway=15
+createVpnGateway=15
+createVpnConnection=15
+deleteVpnCustomerGateway=15
+deleteVpnGateway=15
+deleteVpnConnection=15
+updateVpnCustomerGateway=15
+resetVpnConnection=15
+listVpnCustomerGateways=15
+listVpnGateways=15
+listVpnConnections=15
+
+#### router commands
+createVirtualRouterElement=7
+configureVirtualRouterElement=7
+listVirtualRouterElements=7
+
+#### usage commands
+generateUsageRecords=1
+listUsageRecords=1
+listUsageTypes=1
+
+#### traffic monitor commands
+addTrafficMonitor=1
+deleteTrafficMonitor=1
+listTrafficMonitors=1
+
+#### Cisco Nexus 1000v Virtual Supervisor Module (VSM) commands
+deleteCiscoNexusVSM=1
+enableCiscoNexusVSM=1
+disableCiscoNexusVSM=1
+listCiscoNexusVSMs=1
+
+#### f5 big ip load balancer commands
+
+#Deprecated commands
+addExternalLoadBalancer=1
+deleteExternalLoadBalancer=1
+listExternalLoadBalancers=1
+
+addF5LoadBalancer=1
+configureF5LoadBalancer=1
+deleteF5LoadBalancer=1
+listF5LoadBalancers=1
+listF5LoadBalancerNetworks=1
+
+#### juniper srx firewall commands
+addExternalFirewall=1
+deleteExternalFirewall=1
+listExternalFirewalls=1
+
+addSrxFirewall=1
+deleteSrxFirewall=1
+configureSrxFirewall=1
+listSrxFirewalls=1
+listSrxFirewallNetworks=1
+
+####Netapp integration commands
+createVolumeOnFiler=15
+destroyVolumeOnFiler=15
+listVolumesOnFiler=15
+createLunOnFiler=15
+destroyLunOnFiler=15
+listLunsOnFiler=15
+associateLun=15
+dissociateLun=15
+createPool=15
+deletePool=15
+modifyPool=15
+listPools=15
+
+#### netscaler load balancer commands
+addNetscalerLoadBalancer=1
+deleteNetscalerLoadBalancer=1
+configureNetscalerLoadBalancer=1
+listNetscalerLoadBalancers=1
+listNetscalerLoadBalancerNetworks=1
+
+#### nicira nvp commands
+
+addNiciraNvpDevice=1
+deleteNiciraNvpDevice=1
+listNiciraNvpDevices=1
+listNiciraNvpDeviceNetworks=1
+
+# Not implemented (yet)
+#configureNiciraNvpDevice=1
+
+#### host simulator commands
+
+configureSimulator=1
+
+#### api discovery commands
+
+listApis=15
+
+#### API Rate Limit service command
+
+getApiLimit=15
+resetApiLimit=1
