@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.cloud.dc.*;
 import org.apache.cloudstack.api.ApiConstants.HostDetails;
 import org.apache.cloudstack.api.ApiConstants.VMDetails;
 import org.apache.cloudstack.api.response.AccountResponse;
@@ -89,13 +90,6 @@ import com.cloud.configuration.Config;
 import com.cloud.configuration.ConfigurationService;
 import com.cloud.configuration.Resource.ResourceType;
 import com.cloud.configuration.dao.ConfigurationDao;
-import com.cloud.dc.AccountVlanMapVO;
-import com.cloud.dc.ClusterVO;
-import com.cloud.dc.DataCenter;
-import com.cloud.dc.DataCenterVO;
-import com.cloud.dc.HostPodVO;
-import com.cloud.dc.Vlan;
-import com.cloud.dc.VlanVO;
 import com.cloud.dc.dao.AccountVlanMapDao;
 import com.cloud.dc.dao.ClusterDao;
 import com.cloud.dc.dao.DataCenterDao;
@@ -357,6 +351,7 @@ public class ApiDBUtils {
     private static VpcOfferingDao _vpcOfferingDao;
     private static SnapshotPolicyDao _snapshotPolicyDao;
     private static AsyncJobDao _asyncJobDao;
+    private static ClusterDetailsDao _clusterDetailsDao;
 
     static {
         _ms = (ManagementServer) ComponentLocator.getComponent(ManagementServer.Name);
@@ -454,6 +449,7 @@ public class ApiDBUtils {
         _diskOfferingJoinDao = locator.getDao(DiskOfferingJoinDao.class);
         _srvOfferingJoinDao = locator.getDao(ServiceOfferingJoinDao.class);
         _dcJoinDao = locator.getDao(DataCenterJoinDao.class);
+        _clusterDetailsDao = locator.getDao(ClusterDetailsDao.class);
 
         // Note: stats collector should already have been initialized by this time, otherwise a null instance is returned
         _statsCollector = StatsCollector.getInstance();
@@ -616,6 +612,10 @@ public class ApiDBUtils {
 
     public static ClusterVO findClusterById(long clusterId) {
         return _clusterDao.findById(clusterId);
+    }
+
+    public static ClusterDetailsVO findClusterDetails(long clusterId, String name){
+         return _clusterDetailsDao.findDetail(clusterId,name);
     }
 
     public static DiskOfferingVO findDiskOfferingById(Long diskOfferingId) {

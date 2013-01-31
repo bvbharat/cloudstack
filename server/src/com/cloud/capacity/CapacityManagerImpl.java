@@ -25,7 +25,8 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import javax.ejb.Local;
 import javax.naming.ConfigurationException;
-
+import com.cloud.org.Cluster;
+import com.cloud.vm.dao.UserVmDetailsDao;
 import org.apache.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
@@ -92,9 +93,9 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
     HostDao _hostDao;
     @Inject
     VMInstanceDao _vmDao;
-    @Inject 
+    @Inject
     VolumeDao _volumeDao;
-    @Inject 
+    @Inject
     VMTemplatePoolDao _templatePoolDao;
     @Inject
     AgentManager _agentManager;
@@ -103,11 +104,13 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
     @Inject
     StorageManager _storageMgr;
     @Inject
-    SwiftManager _swiftMgr; 
+    SwiftManager _swiftMgr;
     @Inject
-    ConfigurationManager _configMgr;   
+    ConfigurationManager _configMgr;
     @Inject
     HypervisorCapabilitiesDao _hypervisorCapabilitiesDao;
+    @Inject
+    UserVmDetailsDao _userVmDetailsDao;
 
     private int _vmCapacityReleaseInterval;
     private ScheduledExecutorService _executor;
@@ -121,7 +124,6 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         _name = name;
         _vmCapacityReleaseInterval = NumbersUtil.parseInt(_configDao.getValue(Config.CapacitySkipcountingHours.key()), 3600);
         _storageOverProvisioningFactor = NumbersUtil.parseFloat(_configDao.getValue(Config.StorageOverprovisioningFactor.key()), 1.0f);
-        _cpuOverProvisioningFactor = NumbersUtil.parseFloat(_configDao.getValue(Config.CPUOverprovisioningFactor.key()), 1.0f);
 
         if (_cpuOverProvisioningFactor < 1.0f) {
             _cpuOverProvisioningFactor = 1.0f;
@@ -168,9 +170,6 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         try {
             txn.start();
 
-            int vmCPU = svo.getCpu() * svo.getSpeed();
-            long vmMem = svo.getRamSize() * 1024L * 1024L;
-
             capacityCpu = _capacityDao.lockRow(capacityCpu.getId(), true);
             capacityMemory = _capacityDao.lockRow(capacityMemory.getId(), true);
 
@@ -179,13 +178,18 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             long reservedCpu = capacityCpu.getReservedCapacity();
             long reservedMem = capacityMemory.getReservedCapacity();
             long actualTotalCpu = capacityCpu.getTotalCapacity();
-            String opFactor = _configDao.getValue(Config.CPUOverprovisioningFactor.key());
-            float cpuOverprovisioningFactor = NumbersUtil.parseFloat(opFactor, 1);
-            long totalCpu = (long) (actualTotalCpu * cpuOverprovisioningFactor);
+            float cpuOvercommitRatio =Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"cpuOvercommitRatio").getValue());
+            float ramOvercommitRatio = Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"ramOvercommitRatio").getValue());
+            int vmCPU = (int)((svo.getCpu() * svo.getSpeed())/cpuOvercommitRatio);
+            long vmMem = (long) ((svo.getRamSize() * 1024L * 1024L)/ramOvercommitRatio);
+            long actualTotalMem = capacityMemory.getTotalCapacity();
+            long totalMem = (long) (actualTotalMem * ramOvercommitRatio);
+            long totalCpu = (long) (actualTotalCpu * cpuOvercommitRatio);
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Hosts's actual total CPU: " + actualTotalCpu + " and CPU after applying overprovisioning: " + totalCpu);
+                s_logger.debug("Hosts's actual total RAM: " + actualTotalMem + " and RAM after applying overprovisioning: " + totalMem);
             }
-            long totalMem = capacityMemory.getTotalCapacity();
+
 
             if (!moveFromReserved) {
                 /* move resource from used */
@@ -197,10 +201,10 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 }
 
                 if (moveToReservered) {
-                    if (reservedCpu + vmCPU <= totalCpu) {
+                    if (reservedCpu + vmCPU <= actualTotalCpu) {
                         capacityCpu.setReservedCapacity(reservedCpu + vmCPU);
                     }
-                    if (reservedMem + vmMem <= totalMem) {
+                    if (reservedMem + vmMem <= actualTotalMem) {
                         capacityMemory.setReservedCapacity(reservedMem + vmMem);
                     }
                 }
@@ -237,6 +241,8 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
     public void allocateVmCapacity(VirtualMachine vm, boolean fromLastHost) {
 
         long hostId = vm.getHostId();
+        float cpuOvercommitRatio =Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"cpuOvercommitRatio").getValue());
+        float ramOvercommitRatio = Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"ramOvercommitRatio").getValue());
 
         ServiceOfferingVO svo = _offeringsDao.findById(vm.getServiceOfferingId());
 
@@ -247,11 +253,9 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             return;
         }
 
-        int cpu = svo.getCpu() * svo.getSpeed();
-        long ram = svo.getRamSize() * 1024L * 1024L;
+        int cpu = (int)((svo.getCpu() * svo.getSpeed())/cpuOvercommitRatio);
+        long ram = (long) (svo.getRamSize() * 1024L * 1024L/ramOvercommitRatio);
 
-        String opFactor = _configDao.getValue(Config.CPUOverprovisioningFactor.key());
-        float cpuOverprovisioningFactor = NumbersUtil.parseFloat(opFactor, 1);
 
         Transaction txn = Transaction.currentTxn();
 
@@ -265,14 +269,15 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             long reservedCpu = capacityCpu.getReservedCapacity();
             long reservedMem = capacityMem.getReservedCapacity();
             long actualTotalCpu = capacityCpu.getTotalCapacity();
-            long totalCpu = (long) (actualTotalCpu * cpuOverprovisioningFactor);
+            long actualTotalMem = capacityMem.getTotalCapacity();
+            long totalCpu = (long) (actualTotalCpu * cpuOvercommitRatio);
+            long totalMem = (long) (actualTotalMem * ramOvercommitRatio);
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Hosts's actual total CPU: " + actualTotalCpu + " and CPU after applying overprovisioning: " + totalCpu);
             }
-            long totalMem = capacityMem.getTotalCapacity();
 
-            long freeCpu = totalCpu - (reservedCpu + usedCpu);
-            long freeMem = totalMem - (reservedMem + usedMem);
+            long freeCpu = actualTotalCpu - (reservedCpu + usedCpu);
+            long freeMem = actualTotalMem - (reservedMem + usedMem);
 
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("We are allocating VM, increasing the used capacity of this host:" + hostId);
@@ -295,7 +300,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 }
             } else {
                 /* alloc from free resource */
-                if (!((reservedCpu + usedCpu + cpu <= totalCpu) && (reservedMem + usedMem + ram <= totalMem))) {
+                if (!((reservedCpu + usedCpu + cpu <= actualTotalCpu) && (reservedMem + usedMem + ram <= actualTotalMem))) {
                     if (s_logger.isDebugEnabled()) {
                         s_logger.debug("Host doesnt seem to have enough free capacity, but increasing the used capacity anyways, since the VM is already starting on this host ");
                     }
@@ -321,12 +326,12 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
     }
 
     @Override
-    public boolean checkIfHostHasCapacity(long hostId, Integer cpu, long ram, boolean checkFromReservedCapacity, float cpuOverprovisioningFactor, boolean considerReservedCapacity) {
+    public boolean checkIfHostHasCapacity(long hostId, Integer cpu, long ram, boolean checkFromReservedCapacity, float cpuOvercommitRatio,float ramOvercommitRatio, boolean considerReservedCapacity) {
         boolean hasCapacity = false;
 
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Checking if host: " + hostId + " has enough capacity for requested CPU: " + cpu + " and requested RAM: " + ram
-                    + " , cpuOverprovisioningFactor: " + cpuOverprovisioningFactor);
+                    + " , cpuOverprovisioningFactor: " + cpuOvercommitRatio );
         }
 
         CapacityVO capacityCpu = _capacityDao.findByHostIdType(hostId, CapacityVO.CAPACITY_TYPE_CPU);
@@ -346,18 +351,20 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 
             return false;
         }
+        cpu = (int)(cpu/cpuOvercommitRatio);
+        ram = (long)(ram/ramOvercommitRatio);
 
         long usedCpu = capacityCpu.getUsedCapacity();
         long usedMem = capacityMem.getUsedCapacity();
         long reservedCpu = capacityCpu.getReservedCapacity();
         long reservedMem = capacityMem.getReservedCapacity();
         long actualTotalCpu = capacityCpu.getTotalCapacity();
-        long totalCpu = (long) (actualTotalCpu * cpuOverprovisioningFactor);
+        long actualTotalMem = capacityMem.getTotalCapacity();
+        long totalCpu = (long) (actualTotalCpu * cpuOvercommitRatio );
+        long totalMem = (long) (actualTotalMem *ramOvercommitRatio );
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Hosts's actual total CPU: " + actualTotalCpu + " and CPU after applying overprovisioning: " + totalCpu);
         }
-
-        long totalMem = capacityMem.getTotalCapacity();
 
         String failureReason = "";
         if (checkFromReservedCapacity) {
@@ -380,10 +387,10 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 failureReason = "Host does not have enough reserved CPU available";
             }
         } else {
-            
+
             long reservedCpuValueToUse = reservedCpu;
             long reservedMemValueToUse = reservedMem;
-            
+
             if(!considerReservedCapacity){
                 if (s_logger.isDebugEnabled()) {
                     s_logger.debug("considerReservedCapacity is" + considerReservedCapacity + " , not considering reserved capacity for calculating free capacity");
@@ -391,16 +398,16 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 reservedCpuValueToUse = 0;
                 reservedMemValueToUse = 0;
             }
-            long freeCpu = totalCpu - (reservedCpuValueToUse + usedCpu);
-            long freeMem = totalMem - (reservedMemValueToUse + usedMem);
+            long freeCpu = actualTotalCpu - (reservedCpuValueToUse + usedCpu);
+            long freeMem = actualTotalMem - (reservedMemValueToUse + usedMem);
 
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Free CPU: " + freeCpu + " , Requested CPU: " + cpu);
                 s_logger.debug("Free RAM: " + freeMem + " , Requested RAM: " + ram);
             }
             /* alloc from free resource */
-            if ((reservedCpuValueToUse + usedCpu + cpu <= totalCpu)) {
-                if ((reservedMemValueToUse + usedMem + ram <= totalMem)) {
+            if ((reservedCpuValueToUse + usedCpu + cpu <= actualTotalCpu)) {
+                if ((reservedMemValueToUse + usedMem + ram <= actualTotalMem)) {
                     hasCapacity = true;
                 } else {
                     failureReason = "Host does not have enough RAM available";
@@ -419,8 +426,8 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                     + actualTotalCpu + ", total with overprovisioning: " + totalCpu + "; requested cpu:" + cpu + ",alloc_from_last_host?:"
                     + checkFromReservedCapacity + " ,considerReservedCapacity?: "+considerReservedCapacity);
 
-            s_logger.debug("STATS: Can alloc MEM from host: " + hostId + ", used: " + usedMem + ", reserved: " + reservedMem + ", total: " + totalMem
-                    + "; requested mem: " + ram + ",alloc_from_last_host?:" + checkFromReservedCapacity+ " ,considerReservedCapacity?: "+considerReservedCapacity);
+            s_logger.debug("STATS: Can alloc MEM from host: " + hostId + ", used: " + usedMem + ", reserved: " + reservedMem + ",actual total: " + actualTotalMem
+                    + "total with overprovisioning" + totalMem+ "; requested mem: " + ram + ",alloc_from_last_host?:" + checkFromReservedCapacity+ " , considerReservedCapacity?: "+considerReservedCapacity);
         } else {
 
             if (checkFromReservedCapacity) {
@@ -429,10 +436,10 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             } else {
                 s_logger.debug("STATS: Failed to alloc resource from host: " + hostId + " reservedCpu: " + reservedCpu + ", used cpu: " + usedCpu
                         + ", requested cpu: " + cpu + ", actual total cpu: " + actualTotalCpu + ", total cpu with overprovisioning: " + totalCpu
-                        + ", reservedMem: " + reservedMem + ", used Mem: " + usedMem + ", requested mem: " + ram + ", total Mem:" + totalMem+ " ,considerReservedCapacity?: "+considerReservedCapacity);
+                        + ", reservedMem: " + reservedMem + ", used Mem: " + usedMem + ", requested mem: " + ram + ",actual total Mem:" + actualTotalMem  + "total memory with overprovisioning" +totalMem + "considerReservedCapacity?: "+considerReservedCapacity);
             }
 
-            if (s_logger.isDebugEnabled()) {
+           if (s_logger.isDebugEnabled()) {
                 s_logger.debug(failureReason + ", cannot allocate to this host.");
             }
         }
@@ -440,10 +447,10 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         return hasCapacity;
 
     }
-    
+
     @Override
     public long getAllocatedPoolCapacity(StoragePoolVO pool, VMTemplateVO templateForVmCreation){
-      
+
         // Get size for all the volumes
         Pair<Long, Long> sizes = _volumeDao.getCountAndTotalByPool(pool.getId());
         long totalAllocatedSize = sizes.second() + sizes.first() * _extraBytesPerVolume;
@@ -452,15 +459,15 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         boolean tmpinstalled = false;
         List<VMTemplateStoragePoolVO> templatePoolVOs;
         templatePoolVOs = _templatePoolDao.listByPoolId(pool.getId());
-        
-        for (VMTemplateStoragePoolVO templatePoolVO : templatePoolVOs) {            
+
+        for (VMTemplateStoragePoolVO templatePoolVO : templatePoolVOs) {
             if ((templateForVmCreation != null) && !tmpinstalled && (templatePoolVO.getTemplateId() == templateForVmCreation.getId())) {
                 tmpinstalled = true;
             }
             long templateSize = templatePoolVO.getTemplateSize();
             totalAllocatedSize += templateSize + _extraBytesPerVolume;
         }
-        
+
         // Add the size for the templateForVmCreation if its not already present
         if ((templateForVmCreation != null) && !tmpinstalled) {
             // If the template that was passed into this allocator is not installed in the storage pool,
@@ -469,7 +476,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 
             if (templateHostVO == null) {
                 VMTemplateSwiftVO templateSwiftVO = _swiftMgr.findByTmpltId(templateForVmCreation.getId());
-                if (templateSwiftVO != null) {                                    
+                if (templateSwiftVO != null) {
                     long templateSize = templateSwiftVO.getPhysicalSize();
                     if (templateSize == 0) {
                         templateSize = templateSwiftVO.getSize();
@@ -484,11 +491,11 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 totalAllocatedSize +=  (templateSize + _extraBytesPerVolume);
             }
         }
-        
+
         return totalAllocatedSize;
     }
-    
-    
+
+
     @DB
     @Override
 	public void updateCapacityForHost(HostVO host){
@@ -498,7 +505,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         for (ServiceOfferingVO offering : offerings) {
             offeringsMap.put(offering.getId(), offering);
         }
-        
+
         long usedCpu = 0;
         long usedMemory = 0;
         long reservedMemory = 0;
@@ -508,11 +515,14 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Found " + vms.size() + " VMs on host " + host.getId());
         }
-
+        float cpuOvercommitRatio =1.0f;
+        float ramOvercommitRatio =1.0f;
         for (VMInstanceVO vm : vms) {
             ServiceOffering so = offeringsMap.get(vm.getServiceOfferingId());
-            usedMemory += so.getRamSize() * 1024L * 1024L;
-            usedCpu += so.getCpu() * so.getSpeed();
+            cpuOvercommitRatio = Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"cpuOvercommitRatio").getValue());
+            ramOvercommitRatio = Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"ramOvercommitRatio").getValue());
+            usedMemory += (long)(so.getRamSize()/ramOvercommitRatio) * 1024L * 1024L;
+            usedCpu += (int)(so.getCpu() * (so.getSpeed())/cpuOvercommitRatio);
         }
 
         List<VMInstanceVO> vmsByLastHostId = _vmDao.listByLastHostId(host.getId());
@@ -523,8 +533,10 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             long secondsSinceLastUpdate = (DateUtil.currentGMTTime().getTime() - vm.getUpdateTime().getTime()) / 1000;
             if (secondsSinceLastUpdate < _vmCapacityReleaseInterval) {
                 ServiceOffering so = offeringsMap.get(vm.getServiceOfferingId());
-                reservedMemory += so.getRamSize() * 1024L * 1024L;
-                reservedCpu += so.getCpu() * so.getSpeed();
+                cpuOvercommitRatio = Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"cpuOvercommitRatio").getValue());
+                ramOvercommitRatio = Float.parseFloat(_userVmDetailsDao.findDetail(vm.getId(),"ramOvercommitRatio").getValue());
+                reservedMemory += (long)(so.getRamSize()/ramOvercommitRatio) * 1024L * 1024L;
+                reservedCpu += (int)(so.getCpu() * (so.getSpeed())/cpuOvercommitRatio);
             }
         }
 
@@ -544,7 +556,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         				+ usedCpu);
         		cpuCap.setUsedCapacity(usedCpu);
         	}
-	
+
 	        if (memCap.getUsedCapacity() == usedMemory && memCap.getReservedCapacity() == reservedMemory) {
 	            s_logger.debug("No need to calibrate memory capacity, host:" + host.getId() + " usedMem: " + memCap.getUsedCapacity()
 	                    + " reservedMem: " + memCap.getReservedCapacity());
@@ -561,7 +573,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 	                    + " new usedMem: " + usedMemory);
 	            memCap.setUsedCapacity(usedMemory);
 	        }
-	
+
 	        try {
 	            _capacityDao.update(cpuCap.getId(), cpuCap);
 	            _capacityDao.update(memCap.getId(), memCap);
@@ -580,11 +592,11 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             capacity.setReservedCapacity(reservedMemory);
             capacity.setCapacityState(capacityState);
             _capacityDao.persist(capacity);
-        	
+
             capacity = new CapacityVO(
                     host.getId(),
                     host.getDataCenterId(),
-                    host.getPodId(), 
+                    host.getPodId(),
                     host.getClusterId(),
                     usedCpu,
                     (long)(host.getCpus().longValue() * host.getSpeed().longValue()),
@@ -593,11 +605,11 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
             capacity.setCapacityState(capacityState);
             _capacityDao.persist(capacity);
             txn.commit();
-            
+
         }
-        
+
     }
-    
+
     @Override
     public boolean preStateTransitionEvent(State oldState, Event event, State newState, VirtualMachine vm, boolean transitionStatus, Object opaque) {
         return true;
@@ -651,7 +663,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 releaseVmCapacity(vm, false, false, oldHostId);
             }
         }
-        
+
         if ((newState == State.Starting || newState == State.Migrating || event == Event.AgentReportMigrated) && vm.getHostId() != null) {
             boolean fromLastHost = false;
             if (vm.getLastHostId() == vm.getHostId()) {
@@ -682,7 +694,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 
             if (capacityVOCpus != null && !capacityVOCpus.isEmpty()) {
                 CapacityVO CapacityVOCpu = capacityVOCpus.get(0);
-                long newTotalCpu = (long) (server.getCpus().longValue() * server.getSpeed().longValue() * _cpuOverProvisioningFactor);
+                long newTotalCpu = (long) (server.getCpus().longValue());
                 if ((CapacityVOCpu.getTotalCapacity() <= newTotalCpu)
                         || ((CapacityVOCpu.getUsedCapacity() + CapacityVOCpu.getReservedCapacity()) <= newTotalCpu)) {
                     CapacityVOCpu.setTotalCapacity(newTotalCpu);
@@ -697,7 +709,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
                 _capacityDao.update(CapacityVOCpu.getId(), CapacityVOCpu);
             } else {
                 CapacityVO capacity = new CapacityVO(server.getId(), server.getDataCenterId(), server.getPodId(), server.getClusterId(), 0L,
-                        (long) (server.getCpus().longValue() * server.getSpeed().longValue() * _cpuOverProvisioningFactor),
+                        (long) (server.getCpus().longValue() * server.getSpeed().longValue()),
                         CapacityVO.CAPACITY_TYPE_CPU);
                 _capacityDao.persist(capacity);
             }
@@ -783,32 +795,31 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 
 	@Override
 	public void processCancelMaintenaceEventAfter(Long hostId) {
-		updateCapacityForHost(_hostDao.findById(hostId));		
+		updateCapacityForHost(_hostDao.findById(hostId));
 	}
 
 	@Override
 	public void processCancelMaintenaceEventBefore(Long hostId) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void processDeletHostEventAfter(HostVO host) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void processDeleteHostEventBefore(HostVO host) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void processDiscoverEventAfter(
 			Map<? extends ServerResource, Map<String, String>> resources) {
 		// TODO Auto-generated method stub
-		
 	}
 
 	@Override
@@ -816,11 +827,11 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 			Long clusterId, URI uri, String username, String password,
 			List<String> hostTags) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
-	public void processPrepareMaintenaceEventAfter(Long hostId) {		
+	public void processPrepareMaintenaceEventAfter(Long hostId) {
 		_capacityDao.removeBy(Capacity.CAPACITY_TYPE_MEMORY, null, null, null, hostId);
 		_capacityDao.removeBy(Capacity.CAPACITY_TYPE_CPU, null, null, null, hostId);
 	}
@@ -828,7 +839,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
 	@Override
 	public void processPrepareMaintenaceEventBefore(Long hostId) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
     @Override
@@ -839,7 +850,7 @@ public class CapacityManagerImpl implements CapacityManager, StateListener<State
         Long maxGuestLimit = _hypervisorCapabilitiesDao.getMaxGuestsLimit(hypervisorType, hypervisorVersion);
         if(vmCount.longValue() >= maxGuestLimit.longValue()){
             if (s_logger.isDebugEnabled()) {
-                s_logger.debug("Host name: " + host.getName() + ", hostId: "+ host.getId() + 
+                s_logger.debug("Host name: " + host.getName() + ", hostId: "+ host.getId() +
                         " already reached max Running VMs(count includes system VMs), limit is: " + maxGuestLimit + ",Running VM counts is: "+vmCount.longValue());
             }
             return true;

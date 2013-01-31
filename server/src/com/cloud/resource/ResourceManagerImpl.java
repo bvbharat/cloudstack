@@ -30,6 +30,7 @@ import java.util.Set;
 import javax.ejb.Local;
 import javax.naming.ConfigurationException;
 
+import com.cloud.dc.*;
 import org.apache.cloudstack.api.command.admin.cluster.AddClusterCmd;
 import org.apache.cloudstack.api.command.admin.storage.ListS3sCmd;
 import org.apache.cloudstack.api.command.admin.swift.AddSwiftCmd;
@@ -151,6 +152,8 @@ import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.VirtualMachine.State;
 import com.cloud.vm.VirtualMachineManager;
 import com.cloud.vm.dao.VMInstanceDao;
+import com.cloud.hypervisor.Hypervisor;
+
 
 @Local({ ResourceManager.class, ResourceService.class })
 public class ResourceManagerImpl implements ResourceManager, ResourceService, Manager {
@@ -434,7 +437,20 @@ public class ResourceManagerImpl implements ResourceManager, ResourceService, Ma
         }
         clusterId = cluster.getId();
         result.add(cluster);
+        if ( Hypervisor.HypervisorType.getType(cmd.getHypervisor()) == HypervisorType.XenServer ){
+           ClusterDetailsVO cluster_detail_cpu = new ClusterDetailsVO(clusterId, "cpuOvercommitRatio", Float.toString(cmd.getCpuOvercommitRatio()));
+           ClusterDetailsVO cluster_detail_ram = new ClusterDetailsVO(clusterId, "ramOvercommitRatio", Float.toString(cmd.getRamOvercommitRaito()));
+           _clusterDetailsDao.persist(cluster_detail_cpu);
+           _clusterDetailsDao.persist(cluster_detail_ram);
+        }
+        else {
+            ClusterDetailsVO cluster_detail_cpu = new ClusterDetailsVO(clusterId,"cpuOvercommitRatio","1");
+            ClusterDetailsVO cluster_detail_ram = new ClusterDetailsVO(clusterId, "ramOvercommitRatio", "1");
+            _clusterDetailsDao.persist(cluster_detail_cpu);
+            _clusterDetailsDao.persist(cluster_detail_ram);
+            s_logger.info("The cpu and ram overcommit is supported only for xenserver currently, so defaulting the overcommit ratios to 1") ;
 
+        }
         if (clusterType == Cluster.ClusterType.CloudManaged) {
             return result;
         }

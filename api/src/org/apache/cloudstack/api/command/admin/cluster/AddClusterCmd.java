@@ -20,6 +20,7 @@ package org.apache.cloudstack.api.command.admin.cluster;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.cloud.exception.InvalidParameterValueException;
 import org.apache.cloudstack.api.*;
 import org.apache.log4j.Logger;
 
@@ -78,8 +79,15 @@ public class AddClusterCmd extends BaseCmd {
     @Parameter(name = ApiConstants.VSM_IPADDRESS, type = CommandType.STRING, required = false, description = "the ipaddress of the VSM associated with this cluster")
     private String vsmipaddress;
 
+    @Parameter (name=ApiConstants.CPU_Overcommit_Ratio, type = CommandType.STRING, required = false , description = "value of the cpu overcommit ratio, defaults to 1")
+    private String  cpuovercommitRatio;
+
+    @Parameter(name = ApiConstants.RAM_OVERCOMMIT_RATIO, type = CommandType.STRING, required = false ,description = "value of the default ram overcommit ratio, defaults to 1")
+    private String  ramovercommitRaito;
+
     public String getVSMIpaddress() {
         return vsmipaddress;
+
     }
 
     public String getVSMPassword() {
@@ -144,9 +152,26 @@ public class AddClusterCmd extends BaseCmd {
         this.allocationState = allocationState;
     }
 
+    public Float getCpuOvercommitRatio (){
+        if(cpuovercommitRatio != null){
+           return Float.parseFloat(cpuovercommitRatio);
+        }
+        return 1.0f;
+    }
+
+    public Float getRamOvercommitRaito (){
+        if (ramovercommitRaito != null){
+            return Float.parseFloat(ramovercommitRaito);
+        }
+        return 1.0f;
+    }
+
     @Override
     public void execute(){
         try {
+            if ((getRamOvercommitRaito().compareTo(1f) <= 0) | (getCpuOvercommitRatio().compareTo(1f) <=0)) {
+                throw new InvalidParameterValueException("Cpu and ram overcommit ratios  should not be less than 1");
+            }
             List<? extends Cluster> result = _resourceService.discoverCluster(this);
             ListResponse<ClusterResponse> response = new ListResponse<ClusterResponse>();
             List<ClusterResponse> clusterResponses = new ArrayList<ClusterResponse>();

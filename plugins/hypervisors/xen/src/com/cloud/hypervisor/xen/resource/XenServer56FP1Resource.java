@@ -136,9 +136,9 @@ public class XenServer56FP1Resource extends XenServer56Resource {
         record.nameLabel = vmSpec.getName();
         record.actionsAfterCrash = Types.OnCrashBehaviour.DESTROY;
         record.actionsAfterShutdown = Types.OnNormalExit.DESTROY;
-        record.memoryDynamicMax = vmSpec.getMinRam();
+        record.memoryDynamicMax = vmSpec.getMaxRam();
         record.memoryDynamicMin = vmSpec.getMinRam();
-        record.memoryStaticMax = vmSpec.getMinRam();
+        record.memoryStaticMax = vmSpec.getMaxRam();
         record.memoryStaticMin = vmSpec.getMinRam();
         record.VCPUsMax = (long) vmSpec.getCpus();
         record.VCPUsAtStartup = (long) vmSpec.getCpus();

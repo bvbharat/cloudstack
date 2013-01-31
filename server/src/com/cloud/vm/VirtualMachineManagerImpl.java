@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import javax.ejb.Local;
 import javax.naming.ConfigurationException;
 
+import com.cloud.dc.*;
 import org.apache.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
@@ -75,9 +76,6 @@ import com.cloud.configuration.Config;
 import com.cloud.configuration.ConfigurationManager;
 import com.cloud.configuration.dao.ConfigurationDao;
 import com.cloud.consoleproxy.ConsoleProxyManager;
-import com.cloud.dc.DataCenter;
-import com.cloud.dc.DataCenterVO;
-import com.cloud.dc.HostPodVO;
 import com.cloud.dc.dao.DataCenterDao;
 import com.cloud.dc.dao.HostPodDao;
 import com.cloud.deploy.DataCenterDeployment;
@@ -160,6 +158,7 @@ import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.SecondaryStorageVmDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
+import com.cloud.vm.dao.UserVmDetailsDao;
 
 @Local(value = VirtualMachineManager.class)
 public class VirtualMachineManagerImpl implements VirtualMachineManager, Listener {
@@ -239,6 +238,10 @@ public class VirtualMachineManagerImpl implements VirtualMachineManager, Listene
 
     @Inject
     protected ResourceManager _resourceMgr;
+    @Inject
+    protected ClusterDetailsDao  _clusterDetailsDao;
+    @Inject
+    protected UserVmDetailsDao _uservmDetailsDao;
 
     Map<VirtualMachine.Type, VirtualMachineGuru<? extends VMInstanceVO>> _vmGurus = new HashMap<VirtualMachine.Type, VirtualMachineGuru<? extends VMInstanceVO>>();
     protected StateMachine2<State, VirtualMachine.Event, VirtualMachine> _stateMachine;
@@ -405,6 +408,8 @@ public class VirtualMachineManagerImpl implements VirtualMachineManager, Listene
 
         VirtualMachineGuru<T> guru = getVmGuru(vm);
         guru.finalizeExpunge(vm);
+        //remove the overcommit detials from the uservm details
+        _uservmDetailsDao.deleteDetails(vm.getId());
 
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Expunged " + vm);
@@ -739,6 +744,25 @@ public class VirtualMachineManagerImpl implements VirtualMachineManager, Listene
 
                 long destHostId = dest.getHost().getId();
                 vm.setPodId(dest.getPod().getId());
+                Long cluster_id = dest.getCluster().getId();
+                if(_uservmDetailsDao.findDetails(vm.getId()).isEmpty() ){
+                    ClusterDetailsVO cluster_detail_cpu =  _clusterDetailsDao.findDetail(cluster_id,"cpuOvercommitRatio");
+                    ClusterDetailsVO cluster_detail_ram =  _clusterDetailsDao.findDetail(cluster_id,"ramOvercommitRatio");
+                    UserVmDetailVO user_vm_detail_cpu = new UserVmDetailVO(vm.getId(),"cpuOvercommitRatio",cluster_detail_cpu.getValue());
+                    UserVmDetailVO user_vm_detail_ram = new UserVmDetailVO(vm.getId(),"ramOvercommitRatio",cluster_detail_ram.getValue());
+                    _uservmDetailsDao.persist(user_vm_detail_cpu);
+                    _uservmDetailsDao.persist(user_vm_detail_ram);
+                    vmProfile.setcpuOvercommitRatio(Float.parseFloat(user_vm_detail_cpu.getValue()));
+                    vmProfile.setramOvercommitRatio(Float.parseFloat(user_vm_detail_ram.getValue()));
+                }
+                else {
+                    ClusterDetailsVO cluster_detail_cpu =  _clusterDetailsDao.findDetail(cluster_id,"cpuOvercommitRatio");
+                    ClusterDetailsVO cluster_detail_ram =  _clusterDetailsDao.findDetail(cluster_id,"ramOvercommitRatio");
+                    UserVmDetailVO user_vm_detail_cpu = _uservmDetailsDao.findDetail(vm.getId(),"cpuOvercommitRatio");
+                    UserVmDetailVO user_vm_detail_ram = _uservmDetailsDao.findDetail(vm.getId(),"ramOvercommitRatio");
+                    _uservmDetailsDao.update(user_vm_detail_cpu.getId(),user_vm_detail_cpu);
+                    _uservmDetailsDao.update(user_vm_detail_cpu.getId(),user_vm_detail_ram);
+                }
 
                 try {
                     if (!changeState(vm, Event.OperationRetry, destHostId, work, Step.Prepare)) {
